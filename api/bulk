@@ -1,0 +1,109 @@
+import multer from "multer";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+});
+
+function runMiddleware(req, res, fn) {
+  return new Promise((resolve, reject) => {
+    fn(req, res, (result) => {
+      if (result instanceof Error) return reject(result);
+      return resolve(result);
+    });
+  });
+}
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({
+      error: "Method not allowed",
+    });
+  }
+
+  try {
+    await runMiddleware(
+      req,
+      res,
+      upload.single("file")
+    );
+
+    if (!req.file) {
+      return res.status(400).json({
+        error: "CSV file required",
+      });
+    }
+
+    const csv =
+      req.file.buffer.toString("utf8");
+
+    const rows = csv
+      .split("\n")
+      .slice(1)
+      .filter((r) => r.trim());
+
+    const jobs = [];
+
+    for (const row of rows) {
+      const parts = row.split(",");
+
+      const filename = parts[0]?.trim();
+      const prompt = parts
+        .slice(1)
+        .join(",")
+        .trim();
+
+      if (!prompt) continue;
+
+      try {
+        const response = await fetch(
+          "https://api.genityboost.site/v1/generate",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type":
+                "application/json",
+              "X-API-Key":
+                process.env.API_KEY,
+            },
+            body: JSON.stringify({
+              model: "kling-video",
+              prompt: prompt,
+            }),
+          }
+        );
+
+        const data =
+          await response.json();
+
+        jobs.push({
+          filename,
+          prompt,
+          success: true,
+          response: data,
+        });
+      } catch (err) {
+        jobs.push({
+          filename,
+          prompt,
+          success: false,
+          error: err.message,
+        });
+      }
+    }
+
+    return res.status(200).json({
+      total: jobs.length,
+      jobs,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      error: err.message,
+    });
+  }
+}
