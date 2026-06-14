@@ -1,0 +1,60 @@
+async function generate() {
+
+const prompt =
+document.getElementById("prompt").value;
+
+const result =
+document.getElementById("result");
+
+result.innerHTML = "Generating...";
+
+const r = await fetch(
+"/api/generate",
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json"
+},
+body:JSON.stringify({
+prompt
+})
+}
+);
+
+const data =
+await r.json();
+
+result.innerHTML =
+`<pre>${JSON.stringify(data,null,2)}</pre>`;
+}
+
+async function uploadCSV() {
+
+const file =
+document.getElementById("csv").files[0];
+
+const formData =
+new FormData();
+
+formData.append(
+"file",
+file
+);
+
+const r =
+await fetch(
+"/api/bulk",
+{
+method:"POST",
+body:formData
+}
+);
+
+const data =
+await r.json();
+
+document.getElementById(
+"result"
+).innerHTML =
+`<pre>${JSON.stringify(data,null,2)}</pre>`;
+}
