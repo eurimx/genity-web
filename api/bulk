@@ -1,0 +1,115 @@
+import multer from "multer";
+
+const upload = multer({
+storage: multer.memoryStorage()
+});
+
+function runMiddleware(
+req,
+res,
+fn
+){
+return new Promise(
+(resolve,reject)=>{
+fn(
+req,
+res,
+(result)=>{
+if(result instanceof Error)
+return reject(result);
+
+resolve(result);
+}
+);
+}
+);
+}
+
+export const config = {
+api:{
+bodyParser:false
+}
+};
+
+export default async function handler(
+req,
+res
+){
+
+await runMiddleware(
+req,
+res,
+upload.single("file")
+);
+
+const csv =
+req.file.buffer.toString();
+
+const rows =
+csv
+.split("\n")
+.slice(1)
+.filter(Boolean);
+
+const jobs =
+await Promise.all(
+
+rows.map(async(row)=>{
+
+const cols =
+row.split(",");
+
+const filename =
+cols[0];
+
+const prompt =
+cols.slice(1).join(",");
+
+try{
+
+const r =
+await fetch(
+"https://api.genityboost.site/v1/generate",
+{
+method:"POST",
+headers:{
+"Content-Type":"application/json",
+"X-API-Key":
+process.env.API_KEY
+},
+body:JSON.stringify({
+model:"kling-video",
+prompt
+})
+}
+);
+
+const data =
+await r.json();
+
+return {
+filename,
+success:true,
+data
+};
+
+}catch(err){
+
+return {
+filename,
+success:false,
+error:err.message
+};
+
+}
+
+})
+
+);
+
+res.status(200).json({
+total:jobs.length,
+jobs
+});
+
+}
